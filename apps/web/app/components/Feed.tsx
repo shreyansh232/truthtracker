@@ -178,12 +178,8 @@ const Feed = () => {
         <div className="container mx-auto px-4">
           <div className="flex flex-col md:flex-row justify-between items-center">
             <div className="mb-4 md:mb-0">
-              <h2 className="text-xl font-bold text-blue-600">TruthTracker</h2>
+              <h2 className="text-xl font-bold bg-gradient-to-b from-black to-gray-400 text-transparent bg-clip-text mr-2">TruthTracker</h2>
               <p className="text-sm text-gray-600">Fighting misinformation with facts</p>
-            </div>
-            <div className="text-sm text-gray-500">
-              <p>© 2023 TruthTracker. All rights reserved.</p>
-              <p>Last updated: May 10, 2025 at 11:30 AM</p>
             </div>
           </div>
         </div>

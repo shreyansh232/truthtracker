@@ -1,92 +1,71 @@
-import React from 'react';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Clock } from 'lucide-react';
-import VerificationBadge from './VerificationBadge';
-import { Button } from '@/components/ui/button';
-import { cn } from '@/components/lib/utils';
+import React from "react";
+import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
+import { formatDistanceToNow } from "date-fns";
 
-interface NewsCardProps {
+// Define the props interface for NewsCard to match how it's used in Feed.tsx
+export interface NewsCardProps {
   title: string;
   source: string;
   publishedAt: string;
   status: 'verified' | 'unverified' | 'disputed' | 'neutral';
   summary: string;
-  imageUrl?: string;
-  className?: string;
+  imageUrl: string;
+  url?: string; // Making this optional as it might not be used in all places
 }
 
-const NewsCard = ({
-  title,
-  source,
-  publishedAt,
-  status,
-  summary,
+export default function NewsCard({ 
+  title, 
+  source, 
+  publishedAt, 
+  status, 
+  summary, 
   imageUrl,
-  className,
-}: NewsCardProps) => {
-  // Calculate relative time for "x time ago" display
-  const getRelativeTime = (dateString: string) => {
-    try {
-      const now = new Date();
-      const past = new Date(dateString);
-      const diffMs = now.getTime() - past.getTime();
-      const diffMins = Math.floor(diffMs / (1000 * 60));
-      
-      if (diffMins < 60) return `${diffMins} min ago`;
-      
-      const diffHours = Math.floor(diffMins / 60);
-      if (diffHours < 24) return `${diffHours} h ago`;
-      
-      const diffDays = Math.floor(diffHours / 24);
-      return `${diffDays} d ago`;
-    } catch (error) {
-      console.error("Date parsing error:", error);
-      return "recent";
-    }
-  };
+  url 
+}: NewsCardProps) {
+  const publishedDate = new Date(publishedAt);
+  const timeAgo = formatDistanceToNow(publishedDate, { addSuffix: true });
 
   return (
-    <Card className={cn('overflow-hidden hover:shadow-md transition-shadow animate-fade-in', className)}>
-      {imageUrl && (
-        <div className="w-full h-48 overflow-hidden">
-          <img 
-            src={imageUrl} 
-            alt={title} 
-            className="w-full h-full object-cover"
-            onError={(e) => {
-              // Fallback image if the provided URL fails to load
-              (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1504711434969-e33886168f5c?q=80&w=600";
-            }}
-          />
+    <Card className="overflow-hidden h-full flex flex-col">
+      <div className="relative h-48 w-full">
+        <img
+          src={imageUrl}
+          alt={title}
+          className="object-cover"
+        />
+      </div>
+      <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
+        <div className="flex flex-col space-y-1.5">
+          <h3 className="font-semibold text-lg line-clamp-2">{title}</h3>
         </div>
-      )}
-      
-      <CardHeader className="space-y-1 p-4">
-        <div className="flex justify-between items-start">
-          <VerificationBadge status={status} />
-          <span className="text-xs text-gray-500 flex items-center">
-            <Clock className="w-3 h-3 mr-1" />
-            {getRelativeTime(publishedAt)}
-          </span>
+        <div className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(status)}`}>
+          {status.charAt(0).toUpperCase() + status.slice(1)}
         </div>
-        <CardTitle className="text-xl line-clamp-2">{title}</CardTitle>
-        <CardDescription className="text-sm text-gray-500">
-          Source: {source}
-        </CardDescription>
       </CardHeader>
-      
-      <CardContent className="p-4 pt-0">
-        <p className="text-sm text-gray-700 line-clamp-3">
+      <CardContent className="flex-grow">
+        <p className="text-sm text-muted-foreground line-clamp-3">
           {summary}
         </p>
       </CardContent>
-      
-      <CardFooter className="p-4 pt-0 flex justify-between">
-        <Button variant="outline" size="sm">Read more</Button>
-        <Button variant="ghost" size="sm">Community Notes</Button>
+      <CardFooter className="flex justify-between items-center text-xs text-muted-foreground">
+        <span>{source}</span>
+        <span>{timeAgo}</span>
       </CardFooter>
     </Card>
   );
-};
+}
 
-export default NewsCard;
+function getStatusColor(status: 'verified' | 'unverified' | 'disputed' | 'neutral'): string {
+  switch (status) {
+    case 'verified':
+      return 'bg-green-100 text-green-800';
+    case 'unverified':
+      return 'bg-orange-100 text-orange-800';
+    case 'disputed':
+      return 'bg-red-100 text-red-800';
+    case 'neutral':
+      return 'bg-blue-100 text-blue-800';
+    default:
+      return 'bg-gray-100 text-gray-800';
+  }
+}

@@ -12,6 +12,11 @@ export interface NewsArticle {
     name: string;
     url: string;
   };
+  // Status types with associated colors:
+  // - verified: green
+  // - unverified: orange/amber
+  // - disputed: red
+  // - neutral: blue
   status: 'verified' | 'unverified' | 'disputed' | 'neutral';
 }
 
@@ -89,17 +94,98 @@ const FALLBACK_NEWS = [
   }
 ];
 
+
+
+// Function to verify news using Gemini API
+async function verifyNewsWithGemini(article: Partial<NewsArticle>): Promise<'verified' | 'unverified' | 'disputed' | 'neutral'> {
+  try {
+    const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+    const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent";
+    
+    if (!GEMINI_API_KEY) {
+      console.warn("Gemini API key not found, using random status");
+      return getRandomStatus();
+    }
+
+    // Construct prompt for Gemini to analyze the news article
+    const prompt = `
+      Please verify the following news article about India-Pakistan relations by checking multiple sources.
+      
+      Title: ${article.title}
+      Description: ${article.description}
+      Content: ${article.content}
+      Source: ${article.source?.name}
+      URL: ${article.url}
+      
+      Analyze this news for factual accuracy and provide a single-word rating from these options only:
+      - "verified" (confirmed by multiple reliable sources)
+      - "unverified" (cannot be confirmed or lacks sufficient evidence)
+      - "disputed" (contradicted by other reliable sources)
+      - "neutral" (factual reporting without clear verification)
+      
+      Return only one of these exact words without explanation.
+    `;
+
+    const response = await fetch(`${GEMINI_API_URL}?key=${GEMINI_API_KEY}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        contents: [
+          {
+            parts: [
+              { text: prompt }
+            ]
+          }
+        ],
+        generationConfig: {
+          temperature: 0.1,
+          maxOutputTokens: 10,
+        }
+      }),
+      signal: AbortSignal.timeout(8000) // 8 second timeout
+    });
+
+    if (!response.ok) {
+      console.warn("Gemini API response not OK, using random status");
+      return getRandomStatus();
+    }
+
+    const data = await response.json();
+    const result = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim().toLowerCase();
+    
+    // Validate the response is one of our expected statuses
+    if (result === 'verified' || result === 'unverified' || result === 'disputed' || result === 'neutral') {
+      return result;
+    } else {
+      console.warn("Unexpected status from Gemini API:", result);
+      return getRandomStatus();
+    }
+  } catch (error) {
+    console.error("Failed to verify news with Gemini:", error);
+    return getRandomStatus();
+  }
+}
+
+// Helper function to get random status (fallback)
+function getRandomStatus(): 'verified' | 'unverified' | 'disputed' | 'neutral' {
+  const statuses: Array<'verified' | 'unverified' | 'disputed' | 'neutral'> = [
+    'verified', 'unverified', 'disputed', 'neutral'
+  ];
+  return statuses[Math.floor(Math.random() * statuses.length)]!;
+}
+
 // We'll attempt to fetch from a real API but use fallback data if it fails
 export async function fetchIndoPakNews(): Promise<NewsArticle[]> {
   try {
     // First try to use the GNews API
-    const API_URL = "https://gnews.io/api/v4/search";
-    // Note: This is a free API key with limited requests
-    const API_KEY = "9987cae3be2d26c12353ad23f11765b4";
+    const API_URL = process.env.API_URL;
+    const API_KEY = process.env.API_KEY;
     
     const response = await fetch(
       `${API_URL}?q=india+pakistan+relations&lang=en&country=in&max=10&apikey=${API_KEY}`,
-      { signal: AbortSignal.timeout(5000) } // Add timeout to prevent hanging
+      { signal: AbortSignal.timeout(5000) }
     );
     
     if (!response.ok) {
@@ -115,31 +201,30 @@ export async function fetchIndoPakNews(): Promise<NewsArticle[]> {
     }
     
     // Transform the API response to match our app's data structure
-    const articles: NewsArticle[] = data.articles.map((article: any, index: number) => {
-      // Define valid status options
-      const statuses: Array<'verified' | 'unverified' | 'disputed' | 'neutral'> = [
-        'verified', 'unverified', 'disputed', 'neutral'
-      ];
-      // Ensure we're assigning a valid status type
-      const randomStatus = statuses[Math.floor(Math.random() * statuses.length)];
-      
-      return {
-        id: index.toString(),
-        title: article.title,
-        description: article.description || "No description available",
-        content: article.content || "No content available",
-        url: article.url,
-        image: article.image || "https://images.unsplash.com/photo-1504711434969-e33886168f5c?q=80&w=600",
-        publishedAt: article.publishedAt || new Date().toISOString(),
-        source: {
-          name: article.source?.name || "Unknown Source",
-          url: article.source?.url || "#"
-        },
-        status: randomStatus
-      };
-    });
+    const articlesWithoutStatus = data.articles.map((article: any, index: number) => ({
+      id: index.toString(),
+      title: article.title,
+      description: article.description || "No description available",
+      content: article.content || "No content available",
+      url: article.url,
+      image: article.image || "https://images.unsplash.com/photo-1504711434969-e33886168f5c?q=80&w=600",
+      publishedAt: article.publishedAt || new Date().toISOString(),
+      source: {
+        name: article.source?.name || "Unknown Source",
+        url: article.source?.url || "#"
+      }
+    }));
     
-    return articles;
+    // Process articles in parallel with Gemini verification
+    const verificationPromises = articlesWithoutStatus.map((article: NewsArticle) => 
+      verifyNewsWithGemini(article)
+        .then(status => ({ ...article, status }))
+    );
+    
+    // Wait for all verifications to complete
+    const articles = await Promise.all(verificationPromises);
+    
+    return articles as NewsArticle[];
   } catch (error) {
     console.error("Failed to fetch news:", error);
     toast({

@@ -88,9 +88,6 @@ const FeaturedNews = ({
                 >
                   Read Full Analysis
                 </Button>
-                <Button variant="outline" className="border-white/70 text-white hover:bg-white/20">
-                  View Sources
-                </Button>
               </div>
             </div>
           </CardContent>
