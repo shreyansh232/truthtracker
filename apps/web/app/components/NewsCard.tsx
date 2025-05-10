@@ -31,7 +31,7 @@ export default function NewsCard({
         <img
           src={imageUrl}
           alt={title}
-          className="object-cover"
+          className="object-cover w-full h-full"
         />
       </div>
       <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
